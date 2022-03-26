@@ -14,7 +14,7 @@ if not os.path.isdir("logs"):
 logFormatter = logging.Formatter("%(asctime)s|%(filename)s:%(lineno)s|%(levelname)s|%(message)s",
                                  datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format("logs", f"iqbot_{datetime.now().date()}" ))
 fileHandler.setFormatter(logFormatter)
@@ -34,31 +34,31 @@ class IQ:
         self.API = None
 
     def Login(self):
-        print(f'Login... E:{self.email} P:{self.password} M:{self.mode}')
+        log.info(f'Login... E:{self.email} P:{self.password} M:{self.mode}')
         api = IQ_Option(self.email, self.password)
         status, reason = api.connect()
         if not status:
-            print('Login failed, ', reason)
+            log.info('Login failed, ', reason)
             return False
 
         if api.get_balance_mode() != self.mode:
             api.change_balance(self.mode)
 
         self.API = api
-        print('---Login successfully----')
-        print("Email:", api.email)
-        print("Mode:", api.get_balance_mode())
-        print("Balance:", api.get_balance())
-        print('-------------------------')
+        log.info('---Login successfully----')
+        log.info(f"Email:{api.email}")
+        log.info(f"Mode:{api.get_balance_mode()}")
+        log.info(f"Balance:{api.get_balance()}")
+        log.info('-------------------------')
 
-        # print(api.get_all_ACTIVES_OPCODE())
+        # log.info(api.get_all_ACTIVES_OPCODE())
         return True
 
     def GetTrend(self, prices, maxdict):
         trend = ""
         ema_period = maxdict - 1
 
-        # print("Show EMA")
+        # log.info("Show EMA")
         price = prices["close"][maxdict - 2]
         ema = EMA(prices, timeperiod=ema_period)[maxdict - 2]
         ema = round(ema, 5)
@@ -92,7 +92,7 @@ class IQ:
                     return True, 'BUY', detail
 
         except Exception as e:
-            print(e)
+            log.info(e)
         return False, '', ''
 
 
@@ -115,7 +115,7 @@ if modeInt == '':
 
 mode = "PRACTICE"
 if modeInt not in ('1', '2'):
-    print(f"Invalid mode")
+    log.info(f"Invalid mode")
     exit(0)
 if modeInt == '2':
     mode = "REAL"
@@ -146,18 +146,18 @@ last_hour = 0
 ################ function ################
 
 def show_stat(balance):
-    # print(f"\n----{datetime.now()}-----")
-    # print(f"BALANCE: {balance}")
-    # print(f"PROFIT/LOSS: {totalProfit}")
-    # print(f"BET: {totalBet} WIN: {totalWin} LOSS: {totalLoss}")
-    # print(f"WINRATE: {winrate}")
+    # log.info(f"\n----{datetime.now()}-----")
+    # log.info(f"BALANCE: {balance}")
+    # log.info(f"PROFIT/LOSS: {totalProfit}")
+    # log.info(f"BET: {totalBet} WIN: {totalWin} LOSS: {totalLoss}")
+    # log.info(f"WINRATE: {winrate}")
     now = datetime.now()
     msg = f'\n----{now.strftime("%Y-%m-%d %H:%M:%S")}-----'
     msg += f"\nBALANCE: {balance}"
     msg += f"\nPROFIT/LOSS: {round(totalProfit, 2)}"
     msg += f"\nBET: {totalBet} WIN: {totalWin} LOSS: {totalLoss}"
     msg += f"\nWIN RATE: {round(winrate, 2)}%"
-    print(msg)
+    log.info(msg)
     return msg
 
 
@@ -167,14 +167,14 @@ def send_notify(msg):
     headers = {'content-type': 'application/x-www-form-urlencoded', 'Authorization': 'Bearer ' + token}
 
     r = requests.post(url, headers=headers, data={'message': msg})
-    print(r.text)
+    log.info(r.text)
 
 
 ########### start program
 
 while True:
     now = datetime.now()
-    if not iq.API.check_connect():
+    while not iq.API.check_connect():
         iq.API.connect()
     assets = iq.API.get_all_open_time()
     digital_assets = assets["digital"]
@@ -184,7 +184,7 @@ while True:
             continue
 
         iq.API.start_candles_stream(currency, size, maxdict)
-        # print("Start EMA Sample")
+        # log.info("Start EMA Sample")
 
         candles = iq.API.get_realtime_candles(currency, size)
 
@@ -205,14 +205,14 @@ while True:
         trend, trend_detail = iq.GetTrend(prices, maxdict)
         action, direction, sto_detail = iq.GetStochSignal(prices, maxdict)
 
-        # print(f"{currency} ## Trend:{trend}, Take Action:{action}, Direction:{direction}")
+        # log.info(f"{currency} ## Trend:{trend}, Take Action:{action}, Direction:{direction}")
 
         if trend == "UP" and action and direction == "BUY":
-            print(f"BUY {currency}!!!\n{trend_detail}\n{sto_detail}")
+            log.info(f"BUY {currency}!!!\n{trend_detail}\n{sto_detail}")
 
             _, id = iq.API.buy_digital_spot(currency, amount, "call", duration)
             notify = f'\nBUY: {currency}]\nAT {now.strftime("%Y-%m-%d %H:%M:%S")}\nID: {id}'
-            print(id)
+            log.info(id)
             if id != "error":
 
                 while True:
@@ -221,11 +221,11 @@ while True:
                         break
                 totalProfit += win
                 if win < 0:
-                    print("Loss: " + str(win) + "$")
+                    log.info("Loss: " + str(win) + "$")
                     totalLoss += 1
                     notify += f"\nLOSS: " + str(win)
                 else:
-                    print("Win: " + str(win) + "$")
+                    log.info("Win: " + str(win) + "$")
                     totalWin += 1
                     notify += f"\nWIN: " + str(win)
 
@@ -233,10 +233,10 @@ while True:
                 winrate = round(totalWin / totalBet * 100, 2)
                 send_notify(notify)
             else:
-                print("please try again")
+                log.info("please try again")
 
         elif trend == "DOWN" and action and direction == "SELL":
-            print(f"SELL {currency}!!!\n{trend_detail}\n{sto_detail}")
+            log.info(f"SELL {currency}!!!\n{trend_detail}\n{sto_detail}")
             _, id = iq.API.buy_digital_spot(currency, amount, "put", duration)
             notify = f'\nSELL: {currency}\nAT {now.strftime("%Y-%m-%d %H:%M:%S")}\nID: {id}'
             if id != "error":
@@ -246,22 +246,23 @@ while True:
                         break
                 totalProfit += win
                 if win < 0:
-                    print("Loss: " + str(win) + "$")
+                    log.info("Loss: " + str(win) + "$")
                     notify += f"\nLOSS: " + str(win)
                     totalLoss += 1
                 else:
-                    print("Win " + str(win) + "$")
+                    log.info("Win " + str(win) + "$")
                     notify += f"\nWIN: " + str(win)
                     totalWin += 1
                 totalBet += 1
                 winrate = round(totalWin / totalBet * 100, 2)
                 send_notify(notify)
             else:
-                print("please try again")
+                log.info("please try again")
 
         iq.API.stop_candles_stream(currency, size)
 
-    msg = show_stat(iq.API.get_balance())
+    bl = iq.API.get_balance()
+    msg = show_stat(bl)
     if last_hour != now.hour:
         send_notify(msg)
         last_hour = now.hour
