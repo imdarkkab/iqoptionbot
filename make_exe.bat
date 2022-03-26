@@ -1,0 +1,1 @@
+pyinstaller main.py --hidden-import talib.stream --onefile --clean --name iqbot
